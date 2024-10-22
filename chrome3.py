@@ -13,7 +13,16 @@ def copier_texte():
     texte = texte_encart.get("1.0", "end-1c")  # Obtenir tout le texte de l'encart
     return [ligne for ligne in texte.split('\n') if ligne.strip()]  # Retourner uniquement les lignes non vides
 
-# Fonction pour coller la ligne et effectuer Shift + Enter
+# Fonction pour déterminer le temps d'attente (X) en fonction de la longueur de la phrase
+def calculer_temps_attente(phrase):
+    longueur = len(phrase)
+    if 1 <= longueur <= 30:
+        return 3
+    elif 30 < longueur <= 500:
+        return 6
+    return 0  # Si la longueur dépasse 500 (cas inattendu), X = 0
+
+# Fonction pour taper "elev" et sélectionner "Passer à cet onglet"
 def goElevenlabs_and_paste(ligne):
     # Amener la fenêtre Chrome au premier plan
     chrome_windows = pyautogui.getWindowsWithTitle('Google Chrome')
@@ -25,11 +34,16 @@ def goElevenlabs_and_paste(ligne):
     pyperclip.copy(ligne)  # Copier la ligne actuelle dans le presse-papiers
     pyautogui.hotkey('ctrl', 'a')  # Sélectionner tout le texte
     pyautogui.hotkey('ctrl', 'v')  # Coller le texte copié
-    time.sleep(0.1)  # Petite pause
+    pyautogui.hotkey('shift', 'enter')  # Shift + Enter
 
-    # Effectuer Shift + Enter
-    pyautogui.hotkey('shift', 'enter')
-    time.sleep(0.1)  # Petite pause
+    # Calculer le temps d'attente (X)
+    temps_attente = calculer_temps_attente(ligne)
+    time.sleep(temps_attente)  # Attendre X secondes
+
+    # Effectuer 34 frappes de Tab, puis Enter
+    for _ in range(34):
+        pyautogui.press('tab')
+    pyautogui.press('enter')
 
 # Afficher le message de pause pour la vérification
 def pause_verification():
@@ -80,3 +94,4 @@ texte_encart.pack(padx=20, pady=20)
 
 # Lancer la boucle principale Tkinter
 root.mainloop()
+                                        

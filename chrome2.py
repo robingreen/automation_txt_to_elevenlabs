@@ -13,7 +13,7 @@ def copier_texte():
     texte = texte_encart.get("1.0", "end-1c")  # Obtenir tout le texte de l'encart
     return [ligne for ligne in texte.split('\n') if ligne.strip()]  # Retourner uniquement les lignes non vides
 
-# Fonction pour coller la ligne et effectuer Shift + Enter
+# Fonction pour taper "elev" et sélectionner "Passer à cet onglet"
 def goElevenlabs_and_paste(ligne):
     # Amener la fenêtre Chrome au premier plan
     chrome_windows = pyautogui.getWindowsWithTitle('Google Chrome')
@@ -25,11 +25,7 @@ def goElevenlabs_and_paste(ligne):
     pyperclip.copy(ligne)  # Copier la ligne actuelle dans le presse-papiers
     pyautogui.hotkey('ctrl', 'a')  # Sélectionner tout le texte
     pyautogui.hotkey('ctrl', 'v')  # Coller le texte copié
-    time.sleep(0.1)  # Petite pause
-
-    # Effectuer Shift + Enter
-    pyautogui.hotkey('shift', 'enter')
-    time.sleep(0.1)  # Petite pause
+    time.sleep(0.1)  # Petite pause  
 
 # Afficher le message de pause pour la vérification
 def pause_verification():
