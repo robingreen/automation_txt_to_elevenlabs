@@ -1,9 +1,10 @@
 import tkinter as tk
+from tkinter import filedialog, messagebox
 import pyperclip
 import pyautogui
 import time
 import os
-import sys
+import shutil
 
 # Message initial et avertissement
 message_initial = """Colle ton texte ici formaté avec des sauts de ligne après chaque point.
@@ -27,15 +28,38 @@ def naviguer_vers_elev(ligne):
 
     # Copier et coller la ligne actuelle
     pyperclip.copy(ligne)  # Copier la ligne actuelle dans le presse-papiers
+    pyautogui.click(x=945, y=459)  # Clic en plein dans la fenêtre de saisie de texte
     pyautogui.hotkey('ctrl', 'a')  # Sélectionner tout le texte
     pyautogui.hotkey('ctrl', 'v')  # Coller le texte copié
-    time.sleep(0.1)  # Petite pause
+    pyautogui.hotkey('shift', 'enter')  # LANCE generation du mp3
+    time.sleep(2)  # Petite pause
+
+    pyautogui.click(x=1809, y=957)  # clic sur le bouton download
 
 # Fonction principale exécutée lors du clic sur "Run Task"
 def run_task():
     lignes = copier_texte()  # Obtenir les lignes non vides du texte
     for i in range(min(5, len(lignes))):  # Répéter jusqu'à la cinquième ligne
         naviguer_vers_elev(lignes[i])  # Naviguer avec la ligne actuelle
+    time.sleep(5)  # Attendre que tous les fichiers soient bien téléchargés
+    proposer_deplacer_fichiers()
+
+# Fonction pour déplacer les fichiers .mp3
+def proposer_deplacer_fichiers():
+    reponse = messagebox.askyesno("Déplacer les fichiers", 
+                                  "Voulez-vous déplacer les fichiers .mp3 du dossier 'C:/Users/oo/Downloads' vers un autre emplacement ?")
+    if reponse:  # Si l'utilisateur répond "oui"
+        dossier_destination = filedialog.askdirectory()  # Ouvrir une fenêtre de dialogue pour choisir un dossier
+        if dossier_destination:
+            chemin_source = "C:/Users/oo/Downloads"
+            fichiers_mp3 = [f for f in os.listdir(chemin_source) if f.endswith(".mp3")]
+
+            # Déplacer les fichiers
+            for fichier in fichiers_mp3:
+                shutil.move(os.path.join(chemin_source, fichier), os.path.join(dossier_destination, fichier))
+            
+            messagebox.showinfo("Fichiers déplacés", 
+                                f"Vos fichiers .mp3 ont été déplacés vers {dossier_destination}")
 
 # Fonction pour continuer après la vérification
 def continuer():
