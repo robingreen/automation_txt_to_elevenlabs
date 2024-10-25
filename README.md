@@ -1,6 +1,12 @@
 pip install pyperclip
 pip install pyautogui
-pip install selenium
+pip install pyperclip pyautogui pygetwindow pydub
+brew install ffmpeg
+pip install ffmpeg-python
+pip install imageio[ffmpeg]
+pip install pydub
+
+
 pip install webdriver-manager
 
 pip install geckodriver-autoinstaller

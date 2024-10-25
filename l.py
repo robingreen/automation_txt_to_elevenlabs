@@ -9,6 +9,10 @@ import pygetwindow as gw
 import re
 import string
 import sys
+from pydub import AudioSegment
+from pydub.utils import which
+
+AudioSegment.converter = which("ffmpeg")
 
 # Message initial et avertissement
 message_initial = """Colle ton texte ici formaté avec des sauts de ligne après chaque point.
@@ -37,7 +41,8 @@ def copier_texte():
     lignes = [ligne.strip() for ligne in texte.split('\n') if ligne.strip()]
     lignes_nettoyees = []
     for ligne in lignes:
-        match = re.search(r'\((\d+)s\)$', ligne)  # Chercher un nombre entre parenthèses à la fin
+        # Modifier l'expression régulière pour capturer les nombres entre parenthèses à la fin de la ligne
+        match = re.search(r'\((\d+)\)\s*$', ligne)  # Chercher un nombre entre parenthèses à la fin
         if match:
             temps_silence = int(match.group(1))
             ligne_sans_silence = ligne[:match.start()].strip()
@@ -88,8 +93,9 @@ def naviguer_vers_elev(ligne):
 
     # Clic pour lancer le téléchargement du MP3
     pyautogui.click(x=1809, y=957)  # Clic sur le bouton de téléchargement (coordonnées absolues)
-    time.sleep(temps_attente)# Attendre que chrome download
-    pyautogui.click(x=945, y=459)  # re-clic dans elevenlabs pour court-circuiter l'immobilisation de chrome en train de montrer le download en cours qui paralyse
+    time.sleep(0.5)  # Petite pause pour stabiliser le clic
+    pyautogui.click(x=945, y=459)  # Pour recentrer l'attention sur la fenêtre d'entrée ElevenLabs.
+
 # Fonction principale exécutée lors du clic sur "Run Task"
 def run_task():
     global lignes_globales, fichiers_mp3_crees
@@ -116,7 +122,7 @@ def run_task():
 def attribuer_noms_fichiers_mp3(lignes, nouveaux_fichiers_mp3, chemin_source):
     global fichiers_mp3_crees
     if len(nouveaux_fichiers_mp3) != len(lignes):
-        messagebox.showwarning("Attention", "Le nombre de fichiers MP3 téléchargés ne correspond pas au nombre de lignes traitées.")
+        messagebox.showwarning("Attention", "tu as oublié de positionner GoogleChrome sur ELEVENlabs.\n clique sur NO au prochain message, positionne-toi bien sur chrome et relance RUN TASK")
 
     # Trier les nouveaux fichiers par date de création
     nouveaux_fichiers_mp3.sort(key=lambda f: os.path.getctime(os.path.join(chemin_source, f)))
@@ -150,22 +156,64 @@ def generer_fichier_silences(lignes):
 # Fonction pour déplacer les fichiers .mp3
 def proposer_deplacer_fichiers(lignes):
     global destination_finale
-    reponse = messagebox.askyesno("Déplacer les fichiers", 
+
+    def move_files():
+        chemin_source = os.path.expanduser("~\\Downloads")
+        for fichier in fichiers_mp3_crees:
+            try:
+                shutil.move(os.path.join(chemin_source, fichier), os.path.join(destination_finale, fichier))
+            except Exception as e:
+                print(f"Erreur lors du déplacement du fichier {fichier}: {e}")
+
+        messagebox.showinfo("Fichiers déplacés",
+                            f"Vos fichiers .mp3 ont été déplacés vers {destination_finale}")
+        generer_fichier_silences(lignes)
+        afficher_options_finales()
+
+    reponse = messagebox.askyesno("Déplacer les fichiers",
                                   "Voulez-vous déplacer les fichiers .mp3 du dossier 'Downloads' vers un autre emplacement ?")
     if reponse:
         destination_finale = filedialog.askdirectory()
         if destination_finale:
-            chemin_source = os.path.expanduser("~\\Downloads")
-            for fichier in fichiers_mp3_crees:
-                try:
-                    shutil.move(os.path.join(chemin_source, fichier), os.path.join(destination_finale, fichier))
-                except Exception as e:
-                    print(f"Erreur lors du déplacement du fichier {fichier}: {e}")
+            # Vérifier s'il y a déjà des fichiers mp3 dans le dossier cible
+            existing_mp3_files = [f for f in os.listdir(destination_finale) if f.endswith('.mp3')]
+            if existing_mp3_files:
+                def open_folder_to_clean():
+                    os.startfile(destination_finale)
 
-            messagebox.showinfo("Fichiers déplacés", 
-                                f"Vos fichiers .mp3 ont été déplacés vers {destination_finale}")
-            generer_fichier_silences(lignes)
-            afficher_options_finales()
+                def delete_old_mp3s():
+                    for f in existing_mp3_files:
+                        try:
+                            os.remove(os.path.join(destination_finale, f))
+                        except Exception as e:
+                            print(f"Erreur lors de la suppression du fichier {f}: {e}")
+                    messagebox.showinfo("Suppression terminée", "Les anciens fichiers mp3 ont été supprimés.")
+                    move_files()
+                    options_window.destroy()
+
+                options_window = tk.Toplevel(root)
+                options_window.title("Anciens mp3 détectés")
+                options_window.geometry("500x200")
+                label_msg = tk.Label(options_window, text="Oops! il reste des mp3 dans le dossier cible. Mieux vaut les effacer pour partir sur une base saine.")
+                label_msg.pack(padx=20, pady=10)
+
+                btn_open_folder = tk.Button(options_window, text="Ouvrir le dossier pour faire le ménage moi-même sans que ça perturbe python", command=open_folder_to_clean)
+                btn_open_folder.pack(padx=20, pady=6)
+
+                btn_delete_old_mp3s = tk.Button(options_window, text="Supprimer les anciens mp3 dans le dossier cible", command=delete_old_mp3s)
+                btn_delete_old_mp3s.pack(padx=20, pady=6)
+
+                # Empêcher l'exécution ultérieure jusqu'à ce que l'utilisateur résolve cela
+                return
+            else:
+                # Pas de fichiers mp3 existants, procéder au déplacement
+                move_files()
+        else:
+            messagebox.showwarning("Annulation", "Aucun dossier sélectionné. Opération annulée.")
+            return
+    else:
+        # L'utilisateur a choisi de ne pas déplacer les fichiers
+        pass
 
 # Fonction pour ouvrir le dossier de destination et quitter
 def ouvrir_dossier_et_quitter():
@@ -173,10 +221,18 @@ def ouvrir_dossier_et_quitter():
         os.startfile(destination_finale)  # Ouvrir le dossier dans l'explorateur Windows
     root.quit()  # Quitter l'application
 
-# Fonction pour effacer les MP3 créés et quitter
+# Fonction pour ouvrir le dossier sans quitter
+def ouvrir_dossier_sans_quitter():
+    if destination_finale:
+        os.startfile(destination_finale)  # Ouvrir le dossier dans l'explorateur Windows
+
+# Fonction pour effacer les MP3 créés et quitter après avoir ouvert le dossier
 def effacer_tous_les_mp3_et_quitter():
     if destination_finale:
         chemin_source = os.path.expanduser("~\\Downloads")
+        # Ouvrir le dossier
+        os.startfile(destination_finale)
+        time.sleep(2)  # Attendre que le dossier s'ouvre
         # Supprimer les fichiers créés
         for fichier in fichiers_mp3_crees:
             fichier_source = os.path.join(chemin_source, fichier)
@@ -195,25 +251,90 @@ def effacer_tous_les_mp3_et_quitter():
         messagebox.showinfo("Nettoyage", "Les fichiers .mp3 créés ont été effacés.")
         root.quit()  # Quitter l'application
 
-# Fonction pour passer à la partie "mix" du programme (à définir)
+# Fonction pour concaténer les MP3
+def concatenation_mp3(chemin_dossier):
+    # Obtenir la liste des fichiers mp3 dans le dossier, triés par date de création
+    mp3_files = [f for f in os.listdir(chemin_dossier) if f.endswith('.mp3')]
+    mp3_files_full_paths = [os.path.join(chemin_dossier, f) for f in mp3_files]
+    # Trier les fichiers mp3 du plus ancien au plus récent
+    mp3_files_full_paths.sort(key=lambda x: os.path.getctime(x))
+    # Charger et concaténer les fichiers mp3
+    combined = AudioSegment.empty()
+    for mp3_file in mp3_files_full_paths:
+        audio = AudioSegment.from_mp3(mp3_file)
+        combined += audio
+    # Exporter le mp3 combiné
+    output_file = os.path.join(chemin_dossier, '0concatenation.mp3')
+    combined.export(output_file, format='mp3')
+
+# Fonction pour ajouter les silences aux fichiers MP3
 def passer_a_partie_mix():
-    messagebox.showinfo("Mix", "Passage à la partie 'mix' du programme (fonctionnalité à venir).")
-    root.quit()  # Quitter l'application pour l'instant
+    reponse = messagebox.askyesno("Mixage", "Voulez-vous remplacer les MP3 existants par leur version avec silence ajouté à la fin ?")
+    if reponse:
+        chemin_dossier = destination_finale if destination_finale else os.path.expanduser("~\\Downloads")
+        modifier_mp3_avec_silence(chemin_dossier, remplacer=True)
+    else:
+        reponse_nouveau = messagebox.askyesno("Mixage", "Voulez-vous créer de nouvelles versions MP3 avec silence ajouté à la fin dans un nouveau dossier ?")
+        if reponse_nouveau:
+            dossier_nouveau = filedialog.askdirectory(title="Sélectionnez le dossier pour les nouveaux fichiers MP3")
+            if dossier_nouveau:
+                chemin_dossier = destination_finale if destination_finale else os.path.expanduser("~\\Downloads")
+                modifier_mp3_avec_silence(chemin_dossier, remplacer=False, dossier_nouveau=dossier_nouveau)
+            else:
+                messagebox.showwarning("Annulation", "Aucun dossier sélectionné. Opération annulée.")
+                return
+        else:
+            messagebox.showinfo("Annulation", "Aucune modification apportée aux fichiers MP3.")
+            return
+
+    # Demander si l'utilisateur souhaite concaténer les mp3
+    reponse_concat = messagebox.askyesno("Concaténation", "Voulez-vous concaténer les mp3 du plus ancien au plus récent?")
+    if reponse_concat:
+        # Effectuer la concaténation
+        chemin_dossier = destination_finale if destination_finale else os.path.expanduser("~\\Downloads")
+        concatenation_mp3(chemin_dossier)
+        messagebox.showinfo("Concaténation terminée", "mp3 concaténés. Ouvrir le dossier pour voir le résultat.")
+        ouvrir_dossier_sans_quitter()
+    root.quit()  # Quitter l'application
+
+# Fonction pour modifier les MP3 en ajoutant le silence
+def modifier_mp3_avec_silence(chemin_dossier, remplacer=True, dossier_nouveau=None):
+    for i, (ligne_sans_silence, temps_silence) in enumerate(lignes_globales):
+        if i < len(fichiers_mp3_crees):
+            fichier_mp3 = fichiers_mp3_crees[i]
+            chemin_fichier = os.path.join(chemin_dossier, fichier_mp3)
+            try:
+                audio = AudioSegment.from_mp3(chemin_fichier)
+                # Ajouter le silence à la fin si temps_silence > 0
+                if temps_silence > 0:
+                    silence_audio = AudioSegment.silent(duration=temps_silence * 1000)  # Convertir en millisecondes
+                    audio += silence_audio
+                if remplacer:
+                    audio.export(chemin_fichier, format="mp3")
+                else:
+                    nouveau_nom = f"{os.path.splitext(fichier_mp3)[0]}_silence.mp3"
+                    chemin_nouveau = os.path.join(dossier_nouveau, nouveau_nom)
+                    audio.export(chemin_nouveau, format="mp3")
+            except Exception as e:
+                print(f"Erreur lors de la modification du fichier {fichier_mp3}: {e}")
 
 # Fonction pour afficher les options finales
 def afficher_options_finales():
     options_fenetre = tk.Toplevel(root)
     options_fenetre.title("Actions finales")
-    options_fenetre.geometry("400x200")
+    options_fenetre.geometry("500x300")
     options_fenetre.attributes("-topmost", True)
+
+    bouton_ouvrir_sans_quitter = tk.Button(options_fenetre, text="Ouvrir le dossier sans quitter", command=ouvrir_dossier_sans_quitter)
+    bouton_ouvrir_sans_quitter.pack(padx=20, pady=10)
 
     bouton_ouvrir = tk.Button(options_fenetre, text="Ouvrir le dossier et quitter", command=ouvrir_dossier_et_quitter)
     bouton_ouvrir.pack(padx=20, pady=10)
 
-    bouton_effacer = tk.Button(options_fenetre, text="Effacer les MP3 créés et quitter", command=effacer_tous_les_mp3_et_quitter)
+    bouton_effacer = tk.Button(options_fenetre, text="Effacer les MP3 créés et quitter après avoir ouvert le dossier", command=effacer_tous_les_mp3_et_quitter)
     bouton_effacer.pack(padx=20, pady=10)
 
-    bouton_mix = tk.Button(options_fenetre, text="Passer à la partie mix (à venir)", state='disabled')
+    bouton_mix = tk.Button(options_fenetre, text="Passer à la partie mix", command=passer_a_partie_mix)
     bouton_mix.pack(padx=20, pady=10)
 
 # Fonction pour continuer après la vérification
