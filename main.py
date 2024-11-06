@@ -26,15 +26,6 @@ destination_finale = None  # Variable globale pour le dossier de destination fin
 fichiers_mp3_crees = []   # Liste des fichiers MP3 créés
 lignes_globales = []      # Liste globale des lignes traitées
 
-def detect_error_message():
-    # Assumes that 'error_message.png' is an image of the error message
-    try:
-        error_location = pyautogui.locateOnScreen('error_message.png', confidence=0.8)
-        return error_location is not None
-    except Exception as e:
-        print(f"Erreur lors de la détection du message d'erreur: {e}")
-        return False
-
 # Fonction pour nettoyer les noms de fichiers
 def nettoyer_nom_fichier(nom):
     # Remplacer les caractères non autorisés par '_'
@@ -83,52 +74,29 @@ def activer_fenetre_chrome_elevenlabs():
 # Fonction pour naviguer vers ElevenLabs et effectuer les actions
 def naviguer_vers_elev(ligne):
     if not activer_fenetre_chrome_elevenlabs():
-        return False  # Si la fenêtre n'est pas trouvée, on arrête la fonction et indique un échec
+        return  # Si la fenêtre n'est pas trouvée, on arrête la fonction
 
     # Copier et coller la ligne actuelle
     pyperclip.copy(ligne)  # Copier la ligne actuelle dans le presse-papiers
     pyautogui.click(x=945, y=459)  # Clic sur le champ de saisie de texte (coordonnées absolues)
-    time.sleep(0.5)  # Petite pause pour stabiliser le clic
+    time.sleep(0.8)  # Petite pause pour stabiliser le clic
 
     pyautogui.hotkey('ctrl', 'a')  # Sélectionner tout le texte
-    time.sleep(0.2)  # Pause entre les actions
+    time.sleep(0.5)  # Pause entre les actions
     pyautogui.hotkey('ctrl', 'v')  # Coller le texte copié
-    time.sleep(0.2)  # Pause entre les actions
+    time.sleep(0.5)  # Pause entre les actions
     pyautogui.hotkey('shift', 'enter')  # Lancer la génération du mp3
 
     # Ajuster le temps de pause selon la longueur de la ligne
     if len(ligne) > 50:
-        temps_attente = max(5.0, len(ligne) * 0.07)  # ICI : augmenter le délai pour les phrases > 50 caractères
+        temps_attente = max(5.0, len(ligne) * 0.1)  # ICI : augmenter le délai pour les phrases > 50 caractères
     else:
         temps_attente = max(3.5, len(ligne) * 0.05)  # ICI : conserver le délai initial pour les phrases courtes
 
-    time.sleep(temps_attente)  # Attendre que la génération soit terminée
-
-    # Essayer de télécharger le MP3, avec des tentatives en cas d'erreur
-    max_attempts = 4
-    attempts = 0
-    while attempts < max_attempts:
-        # Clic pour lancer le téléchargement du MP3
-        pyautogui.click(x=1809, y=957)  # Clic sur le bouton de téléchargement (coordonnées absolues)
-        time.sleep(1)  # Attendre un peu pour que le message d'erreur puisse apparaître
-
-        # Vérifier si le message d'erreur apparaît
-        if detect_error_message():
-            attempts += 1
-            print(f"Tentative {attempts}/{max_attempts} échouée. Le serveur est occupé.")
-            if attempts >= max_attempts:
-                print("Le serveur est occupé. Nombre maximal de tentatives atteint. Passage à l'étape suivante.")
-                return False  # Indiquer un échec pour cette phrase
-            else:
-                time.sleep(3)  # Attendre 3 secondes avant de réessayer le même clic
-                continue  # Réessayer avec la même phrase
-        else:
-            break  # Pas d'erreur, on sort de la boucle et passe à l'étape suivante normalement
-
+    # Clic pour lancer le téléchargement du MP3
+    pyautogui.click(x=1809, y=957)  # Clic sur le bouton de téléchargement (coordonnées absolues)
+    time.sleep(0.5)  # Petite pause pour stabiliser le clic
     pyautogui.click(x=945, y=459)  # Pour recentrer l'attention sur la fenêtre d'entrée ElevenLabs.
-    return True  # Indiquer un succès
-
-
 
 # Fonction principale exécutée lors du clic sur "Run Task"
 def run_task():
@@ -138,31 +106,20 @@ def run_task():
 
     lignes = copier_texte()  # Obtenir les lignes non vides du texte avec les silences
     lignes_globales = lignes  # Stocker globalement pour d'autres fonctions
-
-    compteur_telechargements = 0  # Initialiser un compteur pour les téléchargements
+    
+    compteur_telechargements = 0  # ICI : Initialiser un compteur pour les téléchargements
 
     for i, (ligne_sans_silence, temps_silence) in enumerate(lignes):
-        success = naviguer_vers_elev(ligne_sans_silence)
-        if not success:
-            print("Arrêt du traitement en raison d'erreurs répétées.")
-            break  # Sortir de la boucle des lignes
-
+        naviguer_vers_elev(ligne_sans_silence)
         time.sleep(temps_silence)  # Attendre le silence spécifié
 
-        compteur_telechargements += 1  # Incrémenter le compteur après chaque téléchargement
+        compteur_telechargements += 1  # ICI : Incrémenter le compteur après chaque téléchargement
 
-        # Pause de 10 secondes tous les quatre téléchargements
+        # ICI : Vérifier tous les quatre téléchargements
         if compteur_telechargements % 4 == 0:
-            time.sleep(10)
+            time.sleep(10)  # Pause de 10 secondes tous les quatre téléchargements
 
     time.sleep(5)  # Attendre que tous les fichiers soient bien téléchargés
-
-    # Obtenir les nouveaux fichiers MP3
-    fichiers_mp3_final = set(f for f in os.listdir(chemin_source) if f.endswith(".mp3"))
-    nouveaux_fichiers_mp3 = list(fichiers_mp3_final - fichiers_mp3_initial)
-
-    attribuer_noms_fichiers_mp3(lignes, nouveaux_fichiers_mp3, chemin_source)
-    proposer_deplacer_fichiers(lignes)
 
 
 # Fonction pour attribuer les noms des fichiers .mp3

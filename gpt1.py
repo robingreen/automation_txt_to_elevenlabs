@@ -26,14 +26,23 @@ destination_finale = None  # Variable globale pour le dossier de destination fin
 fichiers_mp3_crees = []   # Liste des fichiers MP3 créés
 lignes_globales = []      # Liste globale des lignes traitées
 
-def detect_error_message():
-    # Assumes that 'error_message.png' is an image of the error message
-    try:
-        error_location = pyautogui.locateOnScreen('error_message.png', confidence=0.8)
-        return error_location is not None
-    except Exception as e:
-        print(f"Erreur lors de la détection du message d'erreur: {e}")
-        return False
+# Fonction pour effacer les mp3 commençant par 'ElevenLab' dans Downloads
+def effacer_mp3_elevenlabs():
+    chemin_source = os.path.expanduser("~\\Downloads")
+    fichiers_a_effacer = [f for f in os.listdir(chemin_source) if f.startswith('ElevenLab') and f.endswith('.mp3')]
+    if fichiers_a_effacer:
+        reponse = messagebox.askyesno("Effacer les fichiers", "Voulez-vous effacer tous les fichiers MP3 commençant par 'ElevenLab' dans le dossier Downloads ?")
+        if reponse:
+            for fichier in fichiers_a_effacer:
+                try:
+                    os.remove(os.path.join(chemin_source, fichier))
+                except Exception as e:
+                    print(f"Erreur lors de la suppression du fichier {fichier}: {e}")
+            messagebox.showinfo("Suppression terminée", "Les fichiers MP3 ont été supprimés.")
+        else:
+            messagebox.showinfo("Info", "Les fichiers MP3 n'ont pas été supprimés.")
+    else:
+        messagebox.showinfo("Info", "Aucun fichier MP3 commençant par 'ElevenLab' trouvé dans le dossier Downloads.")
 
 # Fonction pour nettoyer les noms de fichiers
 def nettoyer_nom_fichier(nom):
@@ -61,6 +70,15 @@ def copier_texte():
         lignes_nettoyees.append((ligne_sans_parentheses, temps_silence))
     return lignes_nettoyees
 
+# Fonction pour charger le texte depuis un fichier .txt
+def charger_texte_fichier():
+    fichier_txt = filedialog.askopenfilename(title="Sélectionner un fichier texte", filetypes=[("Fichiers texte", "*.txt")])
+    if fichier_txt:
+        with open(fichier_txt, 'r', encoding='utf-8') as f:
+            contenu = f.read()
+            texte_encart.delete("1.0", tk.END)
+            texte_encart.insert(tk.END, contenu)
+
 # Fonction pour activer la fenêtre Chrome avec ElevenLabs
 def activer_fenetre_chrome_elevenlabs():
     # Rechercher les fenêtres dont le titre contient 'ElevenLabs' et 'Google Chrome'
@@ -80,6 +98,16 @@ def activer_fenetre_chrome_elevenlabs():
     print("Fenêtre 'ElevenLabs' dans Google Chrome non trouvée.")
     return False
 
+# Fonction pour détecter le message d'erreur
+def detect_error_message():
+    # Assumes that 'error_message.png' is an image of the error message
+    try:
+        error_location = pyautogui.locateOnScreen('error_message.png', confidence=0.8)
+        return error_location is not None
+    except Exception as e:
+        print(f"Erreur lors de la détection du message d'erreur: {e}")
+        return False
+
 # Fonction pour naviguer vers ElevenLabs et effectuer les actions
 def naviguer_vers_elev(ligne):
     if not activer_fenetre_chrome_elevenlabs():
@@ -98,9 +126,9 @@ def naviguer_vers_elev(ligne):
 
     # Ajuster le temps de pause selon la longueur de la ligne
     if len(ligne) > 50:
-        temps_attente = max(5.0, len(ligne) * 0.07)  # ICI : augmenter le délai pour les phrases > 50 caractères
+        temps_attente = max(5.0, len(ligne) * 0.07)
     else:
-        temps_attente = max(3.5, len(ligne) * 0.05)  # ICI : conserver le délai initial pour les phrases courtes
+        temps_attente = max(3.5, len(ligne) * 0.05)
 
     time.sleep(temps_attente)  # Attendre que la génération soit terminée
 
@@ -117,7 +145,7 @@ def naviguer_vers_elev(ligne):
             attempts += 1
             print(f"Tentative {attempts}/{max_attempts} échouée. Le serveur est occupé.")
             if attempts >= max_attempts:
-                print("Le serveur est occupé. Nombre maximal de tentatives atteint. Passage à l'étape suivante.")
+                print("Le serveur est occupé. Nombre maximal de tentatives atteint. Passage à l'étape de mixage.")
                 return False  # Indiquer un échec pour cette phrase
             else:
                 time.sleep(3)  # Attendre 3 secondes avant de réessayer le même clic
@@ -127,8 +155,6 @@ def naviguer_vers_elev(ligne):
 
     pyautogui.click(x=945, y=459)  # Pour recentrer l'attention sur la fenêtre d'entrée ElevenLabs.
     return True  # Indiquer un succès
-
-
 
 # Fonction principale exécutée lors du clic sur "Run Task"
 def run_task():
@@ -140,11 +166,13 @@ def run_task():
     lignes_globales = lignes  # Stocker globalement pour d'autres fonctions
 
     compteur_telechargements = 0  # Initialiser un compteur pour les téléchargements
+    stop_processing = False  # Indicateur pour arrêter le traitement
 
     for i, (ligne_sans_silence, temps_silence) in enumerate(lignes):
         success = naviguer_vers_elev(ligne_sans_silence)
         if not success:
             print("Arrêt du traitement en raison d'erreurs répétées.")
+            stop_processing = True
             break  # Sortir de la boucle des lignes
 
         time.sleep(temps_silence)  # Attendre le silence spécifié
@@ -162,14 +190,20 @@ def run_task():
     nouveaux_fichiers_mp3 = list(fichiers_mp3_final - fichiers_mp3_initial)
 
     attribuer_noms_fichiers_mp3(lignes, nouveaux_fichiers_mp3, chemin_source)
-    proposer_deplacer_fichiers(lignes)
 
+    # Si le traitement a été arrêté prématurément, adapter la liste des lignes pour le reste du programme
+    if stop_processing:
+        lignes = lignes[:compteur_telechargements]
+        lignes_globales = lignes
+
+    proposer_deplacer_fichiers(lignes)
 
 # Fonction pour attribuer les noms des fichiers .mp3
 def attribuer_noms_fichiers_mp3(lignes, nouveaux_fichiers_mp3, chemin_source):
     global fichiers_mp3_crees
-    if len(nouveaux_fichiers_mp3) != len(lignes):
-        messagebox.showwarning("Attention", "Le nombre de fichiers MP3 téléchargés ne correspond pas au nombre de lignes traitées. Vérifiez que tous les fichiers ont été correctement téléchargés.")
+    if len(nouveaux_fichiers_mp3) == 0:
+        messagebox.showwarning("Attention", "Aucun fichier MP3 n'a été téléchargé.")
+        return
 
     # Trier les nouveaux fichiers par date de création
     nouveaux_fichiers_mp3.sort(key=lambda f: os.path.getctime(os.path.join(chemin_source, f)))
@@ -188,19 +222,7 @@ def attribuer_noms_fichiers_mp3(lignes, nouveaux_fichiers_mp3, chemin_source):
                 print(f"Erreur lors du renommage du fichier {fichier}: {e}")
     fichiers_mp3_crees = fichiers_crees  # Stocker la liste des fichiers créés
 
-# Fonction pour générer un fichier texte avec les silences associés
-def generer_fichier_silences(lignes):
-    if destination_finale:
-        chemin_fichier_silences = os.path.join(destination_finale, "silences_associes.txt")
-        with open(chemin_fichier_silences, 'w', encoding='utf-8') as f:
-            for ligne_sans_silence, temps_silence in lignes:
-                if temps_silence > 0:
-                    f.write(f"{ligne_sans_silence}... ({temps_silence} secondes de silence)\n")
-                else:
-                    f.write(f"{ligne_sans_silence}\n")
-        messagebox.showinfo("Fichier créé", "Le fichier de confirmation des silences a été généré.")
-
-# Fonction pour déplacer les fichiers .mp3
+# Fonction pour proposer de déplacer les fichiers .mp3
 def proposer_deplacer_fichiers(lignes):
     global destination_finale
 
@@ -262,6 +284,37 @@ def proposer_deplacer_fichiers(lignes):
         # L'utilisateur a choisi de ne pas déplacer les fichiers
         pass
 
+# Fonction pour générer un fichier texte avec les silences associés
+def generer_fichier_silences(lignes):
+    if destination_finale:
+        chemin_fichier_silences = os.path.join(destination_finale, "silences_associes.txt")
+        with open(chemin_fichier_silences, 'w', encoding='utf-8') as f:
+            for ligne_sans_silence, temps_silence in lignes:
+                if temps_silence > 0:
+                    f.write(f"{ligne_sans_silence}... ({temps_silence} secondes de silence)\n")
+                else:
+                    f.write(f"{ligne_sans_silence}\n")
+        messagebox.showinfo("Fichier créé", "Le fichier de confirmation des silences a été généré.")
+
+# Fonction pour afficher les options finales
+def afficher_options_finales():
+    options_fenetre = tk.Toplevel(root)
+    options_fenetre.title("Actions finales")
+    options_fenetre.geometry("500x300")
+    options_fenetre.attributes("-topmost", True)
+
+    bouton_ouvrir_sans_quitter = tk.Button(options_fenetre, text="Ouvrir le dossier sans quitter", command=ouvrir_dossier_sans_quitter)
+    bouton_ouvrir_sans_quitter.pack(padx=20, pady=10)
+
+    bouton_ouvrir = tk.Button(options_fenetre, text="Ouvrir le dossier et quitter", command=ouvrir_dossier_et_quitter)
+    bouton_ouvrir.pack(padx=20, pady=10)
+
+    bouton_effacer = tk.Button(options_fenetre, text="Effacer les MP3 créés et quitter après avoir ouvert le dossier", command=effacer_tous_les_mp3_et_quitter)
+    bouton_effacer.pack(padx=20, pady=10)
+
+    bouton_mix = tk.Button(options_fenetre, text="Passer à la partie mix", command=passer_a_partie_mix)
+    bouton_mix.pack(padx=20, pady=10)
+
 # Fonction pour ouvrir le dossier de destination et quitter
 def ouvrir_dossier_et_quitter():
     if destination_finale:
@@ -297,22 +350,6 @@ def effacer_tous_les_mp3_et_quitter():
 
         messagebox.showinfo("Nettoyage", "Les fichiers .mp3 créés ont été effacés.")
         root.quit()  # Quitter l'application
-
-# Fonction pour concaténer les MP3
-def concatenation_mp3(chemin_dossier):
-    # Obtenir la liste des fichiers mp3 dans le dossier, triés par date de création
-    mp3_files = [f for f in os.listdir(chemin_dossier) if f.endswith('.mp3')]
-    mp3_files_full_paths = [os.path.join(chemin_dossier, f) for f in mp3_files]
-    # Trier les fichiers mp3 du plus ancien au plus récent
-    mp3_files_full_paths.sort(key=lambda x: os.path.getctime(x))
-    # Charger et concaténer les fichiers mp3
-    combined = AudioSegment.empty()
-    for mp3_file in mp3_files_full_paths:
-        audio = AudioSegment.from_mp3(mp3_file)
-        combined += audio
-    # Exporter le mp3 combiné
-    output_file = os.path.join(chemin_dossier, '0concatenation.mp3')
-    combined.export(output_file, format='mp3')
 
 # Fonction pour ajouter les silences aux fichiers MP3
 def passer_a_partie_mix():
@@ -365,30 +402,21 @@ def modifier_mp3_avec_silence(chemin_dossier, remplacer=True, dossier_nouveau=No
             except Exception as e:
                 print(f"Erreur lors de la modification du fichier {fichier_mp3}: {e}")
 
-# Fonction pour afficher les options finales
-def afficher_options_finales():
-    options_fenetre = tk.Toplevel(root)
-    options_fenetre.title("Actions finales")
-    options_fenetre.geometry("500x300")
-    options_fenetre.attributes("-topmost", True)
-
-    bouton_ouvrir_sans_quitter = tk.Button(options_fenetre, text="Ouvrir le dossier sans quitter", command=ouvrir_dossier_sans_quitter)
-    bouton_ouvrir_sans_quitter.pack(padx=20, pady=10)
-
-    bouton_ouvrir = tk.Button(options_fenetre, text="Ouvrir le dossier et quitter", command=ouvrir_dossier_et_quitter)
-    bouton_ouvrir.pack(padx=20, pady=10)
-
-    bouton_effacer = tk.Button(options_fenetre, text="Effacer les MP3 créés et quitter après avoir ouvert le dossier", command=effacer_tous_les_mp3_et_quitter)
-    bouton_effacer.pack(padx=20, pady=10)
-
-    bouton_mix = tk.Button(options_fenetre, text="Passer à la partie mix", command=passer_a_partie_mix)
-    bouton_mix.pack(padx=20, pady=10)
-
-# Fonction pour continuer après la vérification
-def continuer():
-    avertissement_label.pack_forget()  # Masquer l'avertissement
-    bouton_continuer.pack_forget()  # Masquer le bouton de confirmation
-    initialiser_interface()  # Initialiser l'interface principale
+# Fonction pour concaténer les MP3
+def concatenation_mp3(chemin_dossier):
+    # Obtenir la liste des fichiers mp3 dans le dossier, triés par date de création
+    mp3_files = [f for f in os.listdir(chemin_dossier) if f.endswith('.mp3')]
+    mp3_files_full_paths = [os.path.join(chemin_dossier, f) for f in mp3_files]
+    # Trier les fichiers mp3 du plus ancien au plus récent
+    mp3_files_full_paths.sort(key=lambda x: os.path.getctime(x))
+    # Charger et concaténer les fichiers mp3
+    combined = AudioSegment.empty()
+    for mp3_file in mp3_files_full_paths:
+        audio = AudioSegment.from_mp3(mp3_file)
+        combined += audio
+    # Exporter le mp3 combiné
+    output_file = os.path.join(chemin_dossier, '0concatenation.mp3')
+    combined.export(output_file, format='mp3')
 
 # Fonction pour créer la fenêtre d'arrêt d'urgence
 def fenetre_arret_urgence():
@@ -396,20 +424,19 @@ def fenetre_arret_urgence():
     arret_fenetre.title("Arrêt d'Urgence")
     arret_fenetre.geometry("300x150")
     arret_fenetre.attributes("-topmost", True)
-    arret_fenetre.protocol("WM_DELETE_WINDOW", lambda: None)
+    arret_fenetre.protocol("WM_DELETE_WINDOW", lambda: None)  # Désactiver la fermeture de la fenêtre
 
     label_alerte = tk.Label(arret_fenetre, text="ABSOLUMENT TOUT ARRÊTER", font=("Arial", 14, "bold"), fg="red")
     label_alerte.pack(padx=20, pady=20)
 
-    bouton_arret = tk.Button(arret_fenetre, text="ARRÊT D'URGENCE", font=("Arial", 12), bg="red", fg="white",
-                             command=arreter_programme)
+    bouton_arret = tk.Button(arret_fenetre, text="ARRÊT D'URGENCE", font=("Arial", 12), bg="red", fg="white", command=arreter_programme)
     bouton_arret.pack(padx=20, pady=10)
 
 # Fonction pour arrêter le programme de manière propre
 def arreter_programme():
     sys.exit(1)  # Terminer le programme proprement
 
-# Initialisation de l'interface principale
+# Fonction pour initialiser l'interface principale
 def initialiser_interface():
     # Ajouter le message initial en haut de la fenêtre
     label_message = tk.Label(root, text=message_initial, padx=10, pady=10, justify="left")
@@ -420,11 +447,22 @@ def initialiser_interface():
     texte_encart = tk.Text(root, wrap="word", height=20, width=80, padx=10, pady=10)
     texte_encart.pack(padx=20, pady=20)
 
+    # Ajouter un bouton pour charger un fichier .txt
+    bouton_charger_fichier = tk.Button(root, text="Je préfère soumettre un fichier .txt", command=charger_texte_fichier)
+    bouton_charger_fichier.pack(padx=20, pady=5)
+
     # Ajouter le bouton "Run Task"
     bouton_run = tk.Button(root, text="Run Task", command=run_task)
     bouton_run.pack(padx=20, pady=10)
 
-# Créer la fenêtre Tkinter
+# Fonction pour continuer après la vérification
+def continuer():
+    avertissement_label.pack_forget()  # Masquer l'avertissement
+    bouton_continuer.pack_forget()  # Masquer le bouton de confirmation
+    effacer_mp3_elevenlabs()  # Appeler la fonction pour effacer les MP3 si nécessaire
+    initialiser_interface()  # Initialiser l'interface principale
+
+# Création de la fenêtre principale
 root = tk.Tk()
 root.title("Instructions")
 

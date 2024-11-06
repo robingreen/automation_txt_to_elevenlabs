@@ -1,5 +1,7 @@
 pip install pyperclip
 pip install pyautogui
+pip install opencv-python
+
 pip install pyperclip pyautogui pygetwindow pydub
 brew install ffmpeg
 pip install ffmpeg-python
