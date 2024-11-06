@@ -123,7 +123,6 @@ def detect_error_message():
         return False
 
 # Fonction pour naviguer vers ElevenLabs et effectuer les actions
-# Fonction pour naviguer vers ElevenLabs et effectuer les actions
 def naviguer_vers_elev(ligne):
     if not activer_fenetre_chrome_elevenlabs():
         return False  # Si la fenêtre n'est pas trouvée, on arrête la fonction et indique un échec
@@ -139,26 +138,6 @@ def naviguer_vers_elev(ligne):
     time.sleep(0.2)  # Pause entre les actions
     pyautogui.hotkey('shift', 'enter')  # Lancer la génération du mp3
 
-    # Attendre 3 secondes avant de faire quoi que ce soit
-    time.sleep(3)
-
-    # Boucle pour gérer la détection d'erreurs
-    max_attempts = 1000
-    attempts = 0
-    while attempts < max_attempts:
-        if detect_error_message():
-            attempts += 1
-            print(f"Tentative {attempts}/{max_attempts} échouée. Le serveur est occupé.")
-            pyautogui.click(x=945, y=459)  # Clic sur le champ de saisie de texte
-            time.sleep(1)  # Attendre 1 seconde
-            pyautogui.click(x=1118, y=791)  # Clic pour retenter la génération
-            time.sleep(3)  # Attendre 3 secondes avant de recommencer la détection
-        else:
-            break  # Sortir de la boucle si aucune erreur n'est détectée
-
-    # Si aucune erreur n'est détectée après le délai, continuer le traitement normal
-    pyautogui.click(x=1118, y=791)  # Clic sur le bouton \"generate audio\"
-
     # Ajuster le temps de pause selon la longueur de la ligne
     if len(ligne) > 50:
         temps_attente = max(5.0, len(ligne) * 0.07)
@@ -167,12 +146,29 @@ def naviguer_vers_elev(ligne):
 
     time.sleep(temps_attente)  # Attendre que la génération soit terminée
 
-    # Clic pour lancer le téléchargement du MP3
-    pyautogui.click(x=1809, y=957)  # Clic sur le bouton de téléchargement (coordonnées absolues)
-    time.sleep(0.5)  # Petite pause pour stabiliser le clic
+    # Essayer de télécharger le MP3, avec des tentatives en cas d'erreur
+    max_attempts = 1000
+    attempts = 0
+    while attempts < max_attempts:
+        # Clic pour lancer le téléchargement du MP3
+        pyautogui.click(x=1809, y=957)  # Clic sur le bouton de téléchargement (coordonnées absolues)
+        time.sleep(1)  # Attendre un peu pour que le message d'erreur puisse apparaître
+
+        # Vérifier si le message d'erreur apparaît
+        if detect_error_message():
+            attempts += 1
+            print(f"Tentative {attempts}/{max_attempts} échouée. Le serveur est occupé.")
+            if attempts >= max_attempts:
+                print("Le serveur est occupé. Nombre maximal de tentatives atteint. Passage à l'étape de mixage.")
+                return False  # Indiquer un échec pour cette phrase
+            else:
+                time.sleep(3)  # Attendre 3 secondes avant de réessayer le même clic
+                continue  # Réessayer avec la même phrase
+        else:
+            break  # Pas d'erreur, on sort de la boucle et passe à l'étape suivante normalement
+
     pyautogui.click(x=945, y=459)  # Pour recentrer l'attention sur la fenêtre d'entrée ElevenLabs.
     return True  # Indiquer un succès
-
 
 # Fonction principale exécutée lors du clic sur "Run Task"
 def run_task():
